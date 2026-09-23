@@ -1,13 +1,10 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -353,16 +350,44 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // Dynamically locate dist directory across production container working dirs
+    const candidates = [
+      typeof __dirname !== 'undefined' ? __dirname : '',
+      path.join(process.cwd(), 'dist'),
+      process.cwd(),
+    ];
+    const distPath =
+      candidates.find((dir) => dir && fs.existsSync(path.join(dir, 'index.html'))) ||
+      path.join(process.cwd(), 'dist');
+
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*', (req, res, next) => {
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath, (err) => {
+          if (err) next(err);
+        });
+      } else {
+        res.status(500).send('Application dist index.html not found');
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`FlexiLend Server running on port ${PORT}`);
+  });
+
+  // Handle graceful container termination in Cloud Run
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Fatal server startup failure:', err);
+  process.exit(1);
+});

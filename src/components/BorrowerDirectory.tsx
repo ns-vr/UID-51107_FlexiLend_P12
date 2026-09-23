@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, ArrowUpRight, AlertTriangle, ShieldCheck, MapPin, Briefcase } from 'lucide-react';
+import { Search, Filter, ArrowUpRight, AlertTriangle, ShieldCheck, MapPin, Briefcase, Download } from 'lucide-react';
 import { Borrower } from '../types';
 import { formatINR } from '../utils/financial';
 
@@ -27,6 +27,49 @@ export const BorrowerDirectory: React.FC<BorrowerDirectoryProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  const handleExportCSV = () => {
+    const headers = [
+      'Borrower ID',
+      'Name',
+      'Location',
+      'District',
+      'Occupation',
+      'Loan Amount (INR)',
+      'Current EMI (INR)',
+      'Household Monthly Income (INR)',
+      'FOIR (%)',
+      'Risk Status',
+      'Rainfall Deviation (%)',
+      'SHG Group ID',
+    ];
+
+    const rows = filteredBorrowers.map((b) => [
+      `"${b.borrowerId}"`,
+      `"${b.name}"`,
+      `"${b.location}"`,
+      `"${b.district || b.location}"`,
+      `"${b.occupation}"`,
+      b.loanAmount,
+      b.currentEMI,
+      b.householdIncome,
+      b.foir,
+      `"${b.riskStatus}"`,
+      b.rainfallDeviationPct,
+      `"${b.shgId || 'N/A'}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `flexilend_portfolio_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       {/* Search & Filter Header */}
@@ -42,20 +85,31 @@ export const BorrowerDirectory: React.FC<BorrowerDirectoryProps> = ({
           />
         </div>
 
-        <div className="flex items-center space-x-1 overflow-x-auto w-full sm:w-auto">
-          {['ALL', 'TEMPORARY_STRESS', 'STRUCTURAL_RISK', 'WATCH', 'STABLE'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-2.5 py-1 rounded text-[10px] font-mono whitespace-nowrap transition-all ${
-                statusFilter === st
-                  ? 'bg-cyan-500/20 text-[#00F0FF] border border-cyan-500/40'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {st.replace('_', ' ')}
-            </button>
-          ))}
+        <div className="flex items-center space-x-2 overflow-x-auto w-full sm:w-auto">
+          <div className="flex items-center space-x-1">
+            {['ALL', 'TEMPORARY_STRESS', 'STRUCTURAL_RISK', 'WATCH', 'STABLE'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded text-[10px] font-mono whitespace-nowrap transition-all ${
+                  statusFilter === st
+                    ? 'bg-cyan-500/20 text-[#00F0FF] border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {st.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleExportCSV}
+            title="Download current portfolio view as CSV"
+            className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1 text-[11px] font-mono text-cyan-300 hover:border-cyan-400 hover:bg-cyan-950/30 transition-all flex-shrink-0"
+          >
+            <Download className="h-3.5 w-3.5 text-cyan-400" />
+            <span>EXPORT CSV</span>
+          </button>
         </div>
       </div>
 
